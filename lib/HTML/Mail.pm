@@ -1,7 +1,6 @@
 package HTML::Mail;
 
-
-our $VERSION = '0.02_02';
+our $VERSION = '0.02_03';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -198,6 +197,7 @@ sub _add_html {
 	}
 	$$content .= " /" if $empty;
 	$$content .= ">";
+	return $self;
 }
 
 sub _get_html {
@@ -239,6 +239,7 @@ sub _reset_links {
 	$self->{'links'} = {};
 	$self->{'inline_links'} = {};
 	$self->{'cid'} = 0;
+	return $self;
 }
 
 sub _reset_html {
@@ -251,8 +252,7 @@ sub _tag_start {
 
 	if ($tag eq 'base' and not $self->{'_html_base'}) {
 		$self->{'_html_base'} = $attr->{'href'};
-	}
-	if (
+	}elsif (
 		($tag eq 'link') && 
 		($attr->{'rel'}  && 
 		$attr->{'rel'} eq 'stylesheet') && 
@@ -264,6 +264,8 @@ sub _tag_start {
 		}else{
 			$self->_tag_filter_link($attr, 'href');
 		}
+	}elsif($tag eq 'a' and defined($attr->{'href'})){
+		$attr->{'href'} = URI->new_abs($attr->{'href'},$self->{'_html_base'});
 	}
 	$self->_tag_filter_link($attr, 'background');
 	$self->_tag_filter_link($attr, 'src') if ($tag ne 'script');
@@ -275,6 +277,7 @@ sub _tag_start {
 		}
 	}
 	$self->_add_html(@_);
+	return $self;
 }
 
 sub _add_inline_content{
@@ -293,8 +296,8 @@ sub _add_inline_content{
 
 	$self->_add_html($tag, $attr);
 	$self->{'html_content'} .= "\n $content \n</$tag>";
+	return $self;
 }
-
 
 sub _tag_filter_link {
 	my ($self, $attrs, $attr) = @_;
@@ -302,6 +305,7 @@ sub _tag_filter_link {
 		my $link = $attrs->{$attr};
 		$attrs->{$attr} = "cid:" . $self->_add_link($link);
 	}
+	return $self;
 }
 
 sub _tag_end {
@@ -357,6 +361,7 @@ sub _attach_media {
 	if($self->{'Text'}){
 		$self->{'_message'}->attach($related);
 	}
+	return $self;
 }
 
 sub _get_media {
@@ -375,6 +380,7 @@ sub _get_media {
 	$part->attr('Content-ID'   => "<$cid>");
 
 	$self->{'links'}->{$uri} = [$cid, $part];
+	return $self;
 }
 
 sub _attach_text {
@@ -416,6 +422,7 @@ sub dump_file {
 	
 	open $file, ">$fname" or croak "Error openning file $fname for writting.\n$!";
 	print $file $self->dump;
+	return $self;
 }
 
 sub restore {
@@ -437,6 +444,7 @@ sub restore_file {
 		my $data = <$file>;
 		return $package->restore($data);
 	}
+	return;
 }
 
 sub AUTOLOAD {
@@ -489,7 +497,7 @@ It uses L<MIME::Lite|MIME::Lite> for all MIME related jobs, L<HTML::Parser|HTML:
 
 Email can be 'multipart/alternative' if both HTML and Text content exist and 'multipart/related' if there is only HTML content.
 
-If you want to send text-only email, then you probably won't find this module usefull at all.
+If you want to send text-only email, you probably won't find this module usefull at all.
 
 =head2 Method Summary
 
@@ -664,7 +672,7 @@ attach_links is a subroutine that determines which links will be included in the
 By default no links are included.
 
 B<Be aware that a lot of email clients don't cope well with internally linked media>
-B<This interface is considered experimental and subject to change, use at you own risk>
+B<This interface is considered experimental and subject to change, use at your own risk>
 
 =head1 COMPATIBILITY
 
@@ -672,7 +680,7 @@ B<This interface is considered experimental and subject to change, use at you ow
 
 This module uses L<MIME::Lite|MIME::Lite> to send the emails.
 The default behaviour of the C<send> method is to use sendmail, if this is not possible try sending the mail using smtp.
-C<$html_mail->send('smtp','smtp_server.org')>.
+C<<$html_mail->send('smtp','smtp_server.org')>>.
 Please consult the documentation for further details.
 
 =head2 Suggestions
@@ -682,6 +690,8 @@ Try to use only correct HTML, at least it should be well formed.
 In-line CSS in HTML documents gives better results with a wider range of email clients.
 
 Don't use Javascript, this module will not include external javascript.
+
+this module doesn't support frames/iframes so don't use them for now.
 
 =head2 Email Clients
 
@@ -767,6 +777,10 @@ for bug reporting and submitting a patch
 =item Daniel Wijnands
 
 for bug reporting related with email rebuilding
+
+=item Calvin Huang
+
+for reporting a bug with relative links and several limitations regarding frames and iframes
 
 =back
 

@@ -5,7 +5,7 @@
 
 # change 'tests => 1' to 'tests => last_test_to_print';
 
-use Test::More tests => 3;
+use Test::More tests => 4;
 BEGIN { use_ok('HTML::Mail') };
 
 #########################
@@ -30,7 +30,11 @@ my $html_mail = HTML::Mail->new(
 ok(defined($html_mail) ,'Object is defined');
 #ok(check_email($html_mail), 'Sample message is properly built');
 ok($html_mail->build, 'Email was built');
-#ok(check_email($html_mail), 'Rebuilt message is properly built');
+
+TODO:{
+	local $TODO = "Not independent of perl version/hashing algorithm";
+	ok(check_email($html_mail), 'Rebuilt message is properly built');
+};
 
 #this still needs a lot of work to become platform/version independent
 sub check_email {
