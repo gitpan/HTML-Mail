@@ -1,0 +1,34 @@
+#!/usr/bin/perl -W
+use lib '../blib/lib/';
+
+use HTML::Mail;
+use strict;
+
+if ( $#ARGV != 1 ) {
+    print <<EOF;
+Usage sendpage url email
+
+sendpage http://www.cpan.org receipient\@domain.org
+
+EOF
+    exit 0;
+}
+
+my $url   = shift;
+my $email = shift;
+
+### initialisation
+my $html_mail = new HTML::Mail(
+    HTML    => $url,
+    Text    => "This is the alternative text.\nPlease visit $url\n",
+    From    => 'plank@cpan.org',
+    To      => $email,
+    Subject => "Mail with $url",
+);
+
+$html_mail->build();
+$html_mail->send();
+
+#or if you prefer, print the message to a file, edit it and use sendmail to deliver it.
+#print html_mail->as_string
+

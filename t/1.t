@@ -20,7 +20,7 @@ $HTML::Mail::SIMPLE_CID = 1;
 my $dir = `pwd`;
 chomp($dir);
 
-my $html_mail = Mail::HTML->new(
+my $html_mail = HTML::Mail->new(
   HTML => "file://$dir/teste.html",
   Text => "file://$dir/teste.txt",
   From => 'me@myhost.com',
@@ -29,7 +29,7 @@ my $html_mail = Mail::HTML->new(
 );
 
 ok(defined($html_mail) ,'Object is defined');
-ok(ref($html_mail) eq 'Mail::HTML' ,'Object is of the appropriate class');
+ok(ref($html_mail) eq 'HTML::Mail' ,'Object is of the appropriate class');
 ok($html_mail->can('build'), 'Object can build message');
 ok($html_mail->can('send'), 'Object inherits send from MIME::Lite');
 #ok($html_mail->build, 'Object has built message');

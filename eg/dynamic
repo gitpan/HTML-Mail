@@ -1,0 +1,29 @@
+#!/usr/bin/perl -W
+use lib '../blib/lib/';
+
+use HTML::Mail;
+use strict;
+
+if ( $#ARGV != 2 ) {
+    print <<EOF;
+Usage dynamic name age email
+
+EOF
+    exit 0;
+}
+
+my $name  = shift;
+my $age   = shift;
+my $email = shift;
+
+### initialisation
+my $html_mail = new HTML::Mail(
+    HTML => qq{<html><body><h2>Hi <h1 color="green">$name</h1><br>you are $age years old.</h2></body></html>},
+    Text    => "Hi $name.\n\nYou are $age years old.\n",
+    From    => 'plank@cpan.org',
+    To      => $email,
+    Subject => "HTML::Mail dynamic example",
+);
+
+$html_mail->build();
+$html_mail->send();

@@ -7,28 +7,7 @@ require Exporter;
 
 our @ISA = qw(Exporter MIME::Lite HTML::Parser);
 
-# Items to export into callers namespace by default. Note: do not export
-# names by default without a very good reason. Use EXPORT_OK instead.
-# Do not simply export all your public functions/methods/constants.
-
-# This allows declaration	use Mail::HTML ':all';
-# If you do not need this, moving things directly into @EXPORT or @EXPORT_OK
-# will save memory.
-our %EXPORT_TAGS = (
-  'all' => [
-	  qw(
-
-	  )
-  ]
-);
-
-our @EXPORT_OK = (@{ $EXPORT_TAGS{'all'} });
-
-our @EXPORT = qw(
-
-);
-
-our $VERSION = '0.01_03';
+our $VERSION = '0.01_05';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -49,17 +28,17 @@ sub new {
 	if (!(exists($params{'HTML'}) || exists($params{'Text'}))) {
 		croak "No HTML or Text parameter send";
 	}
-
 	if (exists($params{'HTML'})) {
 		$self->{'HTML'} = $params{'HTML'};
 	}
 	if (exists($params{'Text'})) {
 		$self->{'Text'} = $params{'Text'};
 	}
-	$self->{html_charset} ||= 'iso-8859-1';
+	$self->{'html_charset'} = $params{'html_charset'} ||'iso-8859-15';
+	$self->{'text_charset'} = $params{'html_charset'} || 'iso-8859-15';
 
 	%params = (
-	  %params, useragent => 'Mail::HTML',
+	  %params, useragent => 'HTML::Mail',
 	  timeout => 60
 	);
 
@@ -68,7 +47,8 @@ sub new {
 	$self->{'_ua'}->agent($params{'useragent'});
 	$self->{'_ua'}->timeout($params{'timeout'});
 
-	$self->{'_ua'}->max_size(1024 * 1024);    #One megabyte of content limit (just playing safe)
+	# Some servers give back a 206 Partial Content even though they served all the content
+	#$self->{'_ua'}->max_size(1024 * 1024);    #One megabyte of content limit (just playing safe)
 
 	my $response = $self->{_ua};
 
@@ -86,31 +66,34 @@ sub build {
 }
 
 sub _parse_html {
-	my $self = shift;
+    my $self = shift;
 
-	#set up the HTML parser
-	$self->init(
-	  api_version => 3,
-	  start_h     => [\&_tag_start, 'self, tag, attr, attrseq'],
-	  end_h       => [\&_tag_end, 'self, tag, attr, attrseq'],
-	  text_h      => [\&_tag_end, 'self, text'],
-	);
+    #set up the HTML parser
+    $self->init(
+        api_version => 3,
+        start_h     => [ \&_tag_start, 'self, tag, attr, attrseq' ],
+        end_h       => [ \&_tag_end, 'self, tag, attr, attrseq' ],
+        text_h      => [ \&_tag_end, 'self, text' ],
+    );
 
-	#clean any possible links that exists
-	$self->_reset_links();
-	$self->_reset_html();
+    #clean any possible links that exists
+    $self->_reset_links();
+    $self->_reset_html();
 
-	eval{
-	$self->get($self->{'HTML'});
-	};
-	if (@_) {
-		delete($self->{'_html_base'});
-		$self->parse($self->{'HTML'});
-	}
-	else {
-		$self->{'_html_base'} = $self->{'_response'}->base();
-		$self->parse($self->{'_response'}->content);
-	}
+    eval {
+        $self->get( $self->{'HTML'} );
+    };
+    if (@_ or not $self->{'_response'}->is_success) {
+        delete( $self->{'_html_base'} );
+        if ( $self->{'HTML'} =~ /html/i ) {
+            $self->parse( $self->{'HTML'} );
+        } else {
+            die @_;
+        }
+    }else {
+        $self->{'_html_base'} = $self->{'_response'}->base();
+        $self->parse( $self->{'_response'}->content );
+    }
 }
 
 #Makes a GET request and returns the content
@@ -128,11 +111,13 @@ sub get {
 	}
 
 	my $response = $self->{'_ua'}->get($uri);
+	$self->{'_response'} = $response;
+
 	if (!$response->is_success) {
 		croak "Error while making request [", $response->request->uri, "]\n", $response->status_line;
 	}
 
-	return ($self->{'_response'} = $response)->content;
+	return $response->content;
 }
 
 sub _add_html {
@@ -187,9 +172,9 @@ sub _tag_start {
 		$self->{'_html_base'} = $attr->{'href'};
 	}
 	
-	$self->_tag_filter_link($attr, 'href') if ($tag eq 'link' and $attr->{'rev'} eq 'stylesheet');
+	$self->_tag_filter_link($attr, 'href') if (($tag eq 'link') and (exists($attr->{'rel'}) and $attr->{'rel'} eq 'stylesheet'));
 	$self->_tag_filter_link($attr, 'background');
-	$self->_tag_filter_link($attr, 'src');
+	$self->_tag_filter_link($attr, 'src') if ($tag ne 'script');
 	$self->_add_html(@_);
 }
 
@@ -197,7 +182,6 @@ sub _tag_filter_link {
 	my ($self, $attrs, $attr) = @_;
 	if (exists($attrs->{$attr})) {
 		my $link = $attrs->{$attr};
-
 		$attrs->{$attr} = "cid:" . $self->_add_link($link);
 	}
 	return;
@@ -215,7 +199,7 @@ sub _tag_text {
 
 sub _generate_cid {
 	my $self = shift;
-	return ($SIMPLE_CID ? '': time()) . "_" . $self->{'cid'}++;
+	return ($SIMPLE_CID ? '': rand(10000)) . "_" . $self->{'cid'}++;
 }
 
 sub _attach_media {
@@ -228,14 +212,14 @@ sub _attach_media {
     );
 
     my $html_part = MIME::Lite->new(
-        'Type'        => 'TEXT',
+        'Type'        => 'text/html',
         'Encoding'    => 'quoted-printable',
         'Data'        => $self->_get_html,
         'Disposition' => 'inline',
         'Datestamp'   => undef,
     );
 
-	$html_part->attr("content-type" => "text/html; charset=$self->{'html_charset'}");
+	$html_part->attr('content-type.charset' => $self->{'html_charset'});
 
 	#attach the html part
 	$related->attach($html_part);
@@ -287,6 +271,7 @@ sub _attach_text {
         'Data'        => $content,
         'Datestamp'   => undef,
     );
+	$text_part->attr('content-type.charset' => $self->{'text_charset'});
 
 	return $self->{'text_part'} = $text_part;
 }
@@ -303,53 +288,93 @@ sub _build_all {
 __END__
 # Below is stub documentation for your module. You'd better edit it!
 
-
-
-
 =head1 NAME
 
-Mail::HTML - Perl extension for sending emails with embeded HTML and media
+HTML::Mail - Perl extension for sending emails with embeded HTML and media
 
 =head1 SYNOPSIS
 
- use HTML::Mail;
+  use HTML::Mail;
 
- ### initialisation
- my $html_mail = HTML::Mail->new(
- HTML    => 'http://www.cpan.org',
- Text    => 'This is the text representation of the webpage http://www.cpan.org',
- From    => 'me@myhost.org',
- To      => 'you@yourhost.org',
- Subject => 'CPAN webpage');
- 
- $html_mail->build();
+  ### initialisation
+  my $html_mail = HTML::Mail->new(
+  HTML    => 'http://www.cpan.org',
+  Text    => 'This is the text representation of the webpage http://www.cpan.org',
+  From    => 'me@myhost.org',
+  To      => 'you@yourhost.org',
+  Subject => 'CPAN webpage');
+  
+  ### Build the message
+  $html_mail->build();
 
- ### Dump as string (inherited from MIME::Lite)
- my $sting = $html_mail->as_string();
+  ### Send the email (inherited from MIME::Lite)
+  $html_mail->send();
 
- ### Send the email (inherited from MIME::Lite)
- $html_mail->send();
-
-=head1 ABSTRACT
-
- HTML::Mime is supposed to help with the task of sending emails with html amd images (or other media) embeded.
- It uses MIME::Lite for all MIME related things, HTML::Parser to see related files and change the URIs and LWP to retrieve the related files.
+  ### Dump as string (inherited from MIME::Lite)
+  my $sting = $html_mail->as_string();
 
 =head1 DESCRIPTION
 
+B<HTML::Mime> is supposed to help with the task of sending emails with html amd images (or other media) embeded.
+It uses B<MIME::Lite> for all MIME related jobs, B<HTML::Parser> to see related files and change the URIs and B<LWP> to retrieve the related files.
 
+=head2 Attributes
 
-=head2 EXPORT
+All attributes are B<case sensitive>.
+
+Constructor supports these attributes:
+
+=over 4
+
+=item HTML [URI or STRING]
+
+The URL of HTML data to send in email.
+Most comons URLs are either I<http://www.site.org> or I<file:///home/user/page.html>
+
+If you prefer, you can use it to specify the actual HTML data as a string 
+HTML=>'<html><body><h1>Welcome to HTML::Mail</h1></body></html>'
+
+=item Text [URI or STRING]
+
+The URL of Text data to send in email. Similar to the HTML attribute.
+
+=item From, To, Subject
+
+Inherited from B<MIME::Lite>. Sender, Recipient and Subject of the message.
+
+=item html_charset
+
+Charset of the HTML part of the email. Defaults to I<iso-8859-15>.
+
+=item text_charset
+
+Charset of the text part of the email. Defaults to I<iso-8859-15>.
+
+=item useragent
+
+Useragent sent wen using LWP to retrieve remote documents
+
+=item timeout
+
+Timeout of LWP useragent
+
+=back
+
+=head1 EXPORT
 
 None by default.
 
 =head1 SEE ALSO
 
-MIME::Lite (this method inherits)
+B<MIME::Lite> (this module inherits from it)
+
+B<HTML::Parser> (used in this module to parse html)
+
+B<LWP> (used to fetch content)
 
 =head1 AUTHOR
 
-Cláudio Valente, E<lt>cvalente@sapo.localE<gt>
+Cláudio Valente, E<lt>ClaudioV@technologist.comE<gt>
 
 =head1 COPYRIGHT AND LICENSE
 
