@@ -4,7 +4,8 @@ use lib '../blib/lib';
 use HTML::Mail;
 use strict;
 
-#Send's an email with a webpage included
+# Misc stuff
+# Read sendpage first
 
 if ( $#ARGV != 1 ) {
     print <<EOF;
@@ -20,7 +21,7 @@ my $url   = shift;
 my $email = shift;
 
 ### initialisation
-my $html_mail = new HTML::Mail(
+my $html_mail = HTML::Mail->new(
     HTML    => $url,
     Text    => "This is the alternative text.\nPlease visit $url\n",
     From    => 'plank@cpan.org',
@@ -29,3 +30,9 @@ my $html_mail = new HTML::Mail(
 );
 
 $html_mail->send();
+$html_mail->build(Text=>undef, inline_css=>0);
+$html_mail->send;
+
+#try to attach some linked content
+$html_mail->build(attach_links => sub{my $uri = shift; return $uri =~ /\.gif$/});
+$html_mail->send;

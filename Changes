@@ -1,5 +1,12 @@
 Revision history for Perl extension HTML::Mail.
 
+0.02_01 Sun Feb 22 15:06:36 WET 2004
+	- Patch by Matthew Albright
+	  in-line css
+	  supports  tags that end with / correctly still unsure about xhtml content
+	  attach linked content now optional
+	  spelling corrections
+
 0.02_00 Fri Aug 15 12:23:28 2003
 	- Media is only fetched one time. Useful for rebuilding multiple emails
 	  LWP::UserAgent used is fully specifiable now

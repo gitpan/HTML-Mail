@@ -13,5 +13,7 @@ eg/media/test.html
 eg/media/test.txt
 eg/sendpage
 eg/dynamic
+eg/misc
 eg/serial
 eg/README
+META.yml                                 Module meta-data (added by MakeMaker)

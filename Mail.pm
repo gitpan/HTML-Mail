@@ -1,11 +1,7 @@
 package HTML::Mail;
 
-use strict;
-use warnings;
 
-our @ISA = qw(HTML::Parser);
-
-our $VERSION = '0.02_00';
+our $VERSION = '0.02_01';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -14,6 +10,11 @@ use URI;
 use HTML::Parser;
 use MIME::Lite;
 use Carp qw(carp croak);
+
+use strict;
+use warnings;
+
+our @ISA = qw(HTML::Parser);
 
 use vars qw($SIMPLE_CID $AUTOLOAD);
 
@@ -53,16 +54,33 @@ sub build {
 	if (exists($params{'Text'})) {
 		$self->{'Text'} = $params{'Text'};
 	}
-	if (exists($params{'lwp_ua'})) {
+	if ($params{'lwp_ua'}) {
 		if($params{'lwp_ua'}->isa('LWP::UserAgent')){
 			$self->{'_ua'} = $params{'lwp_ua'};
 		}else{
-			carp "lwp_ua attribute is not a LWP::UserAgent";
+			carp "lwp_ua attribute is not a LWP::UserAgent. Using default.";
+		}
+	}
+	
+	$self->{'inline_css'} = exists($params{'inline_css'}) ? 
+		$params{'inline_css'} :
+		1;
+
+	#by default don't attach anything linked
+	$self->{'attach_links'} = sub {return 0;};
+	if(exists($params{'attach_links'})){
+		if(ref($params{'attach_links'}) eq 'CODE'){
+			$self->{'attach_links'} = $params{'attach_links'};
+		}else{
+			carp "attach_links specified but not a subroutine reference. Ignoring and using default.";
 		}
 	}
 
 	$self->{'html_charset'} = $params{'html_charset'} || 'iso-8859-15';
 	$self->{'text_charset'} = $params{'html_charset'} || 'iso-8859-15';
+
+	$self->{'_original_params'} =  \%params;
+	
 	$self->_set_default_lwp_ua();
 	
 	$self->{'_message'} = MIME::Lite->new(
@@ -94,12 +112,12 @@ sub _parse_html {
 
 	my $response;
 	eval { $response = $self->_get($self->{'HTML'}); };
-	if (@_ or not ($response and $response->is_success)) {
+	if ($@ or not ($response and $response->is_success)) {
 		delete($self->{'_html_base'});
-		if ($self->{'HTML'} =~ /html/i) {
+		if ($self->{'HTML'} =~ /<\s*html.*>/i) {
 			$self->parse($self->{'HTML'});
 		}else {
-			die @_;
+			die $@;
 		}
 	}
 	else {
@@ -136,7 +154,7 @@ sub _get {
 	my $response = $self->{'_ua'}->get($uri);
 
 	if (!$response->is_success) {
-		croak "Error while making request [", $response->request->uri, "]\n", $response->status_line;
+		croak "Error while making request [ GET ", $response->request->uri, "]\n", $response->status_line;
 	}
 
 	return $response;
@@ -147,23 +165,44 @@ sub _add_html {
 	my $content = \$self->{'html_content'};
 	if ($#_ == 1) {
 		$$content .= $tag;    #actually just text
+		return;
+	}
+
+	#special treatment for tags that end with /
+	my $empty;
+	if($attr->{'/'} && $attr->{'/'} eq '/' && $attrseq){
+		pop @$attrseq;
+		$empty = 1;
+	}
+
+	$$content .= "<$tag";
+
+	if ($attrseq && @$attrseq) {
+		$$content .= qq/ $_="$attr->{$_}"/ for (@$attrseq);
 	}
 	else {
-		$$content .= "<$tag";
-		$$content .= " $_=\"$attr->{$_}\"" for (@$attrseq);
-		$$content .= ">";
+		while (my ($k, $v) = each(%$attr)) {
+			$$content .= qq/ $k="$v"/;
+		}
 	}
+	$$content .= " /" if $empty;
+	$$content .= ">";
 }
 
 sub _get_html {
 	return shift->{'html_content'};
 }
 
+sub _create_uri {
+	my $self = shift;
+	defined($_[0]) or die "need a link to create a uri";
+	return URI->new_abs($_[0], $self->{'_html_base'});
+}
+
 sub _add_link {
 	my $self = shift;
-	($#_ == 0) or die "Can only add one link";
 
-	my $uri = URI->new_abs($_[0], $self->{'_html_base'});
+	my $uri = $self->_create_uri ($_[0]);
 
 	if(!exists($self->{'links'}->{$uri}->[0])){
 		my $cid = ($SIMPLE_CID ? '': int rand(10000)) . "_" . $self->{'cid'}++;
@@ -173,6 +212,13 @@ sub _add_link {
 	return $self->{'links'}->{$uri}->[0];
 }
 
+sub _get_inline_content {
+	my $self = shift;
+
+	my $uri = $self->_create_uri ($_[0]);
+	return $self->{'inline_links'}->{$uri} ||= $self->_get($uri)->content;
+}
+
 sub _get_links {
 	return shift->{'links'};
 }
@@ -180,6 +226,7 @@ sub _get_links {
 sub _reset_links {
 	my $self = shift;
 	$self->{'links'} = {};
+	$self->{'inline_links'} = {};
 	$self->{'cid'} = 0;
 }
 
@@ -191,16 +238,52 @@ sub _tag_start {
 	my $self = shift;
 	my ($tag, $attr, $attrseq) = @_;
 
-	if ($tag eq 'base' and not exists($self->{'_html_base'})) {
+	if ($tag eq 'base' and not $self->{'_html_base'}) {
 		$self->{'_html_base'} = $attr->{'href'};
 	}
-	if (($tag eq 'link') && (exists($attr->{'rel'}) && $attr->{'rel'} eq 'stylesheet')){
-		$self->_tag_filter_link($attr, 'href');
+	if (
+		($tag eq 'link') && 
+		($attr->{'rel'}  && 
+		$attr->{'rel'} eq 'stylesheet') && 
+		exists($attr->{'href'})
+	){
+		if($self->{'inline_css'}){
+			my $content = $self->_add_inline_content(@_);
+			return;
+		}else{
+			$self->_tag_filter_link($attr, 'href');
+		}
 	}
 	$self->_tag_filter_link($attr, 'background');
 	$self->_tag_filter_link($attr, 'src') if ($tag ne 'script');
+
+	#selective attach of linked media
+	if(defined($attr->{'href'})){
+		if($self->{'attach_links'}->($attr->{'href'})){
+			$self->_tag_filter_link($attr, 'href');
+		}
+	}
 	$self->_add_html(@_);
 }
+
+sub _add_inline_content{
+	my $self = shift;
+	my ($tag, $attr) = @_;
+
+	my $link = $attr->{'href'};
+	my $content = $self->_get_inline_content($link);
+
+	#try to make easy to generalise in the future
+	#javascript and other things may one day be inlined
+	if($tag eq 'link' && $attr->{'rel'} eq 'stylesheet'){
+		$tag = 'style';
+		delete($attr->{'href'});
+	}
+
+	$self->_add_html($tag, $attr);
+	$self->{'html_content'} .= "\n $content \n</$tag>";
+}
+
 
 sub _tag_filter_link {
 	my ($self, $attrs, $attr) = @_;
@@ -249,6 +332,7 @@ sub _attach_media {
 	if($SIMPLE_CID){
 		#needs to be sorted in order to run the build tests
 		#otherwise the order depends on the hashing function and threrefore on perl's version
+		#TODO beter tests
 		my %links = %{ $self->_get_links };
 		for (sort keys %links) {
 			$related->attach($links{$_}->[1]);
@@ -361,7 +445,7 @@ HTML::Mail - Perl extension for sending emails with embedded  HTML and media
 
 	use HTML::Mail;
 
-	### initialization
+	### initialisation
 	my $html_mail = HTML::Mail->new(
 		HTML    => 'http://www.cpan.org',
 		Text    => 'This is the text representation of the webpage http://www.cpan.org',
@@ -378,11 +462,11 @@ HTML::Mail - Perl extension for sending emails with embedded  HTML and media
 	### Rebuild the message and send
 	$html_mail->build->send;
 
-	### Serialize to file for later reuse
+	### Serialise to file for later reuse
 	$html_mail->dump_file('/tmp/cpan_mail.data');
 
 	### Restore from file
-	my $retored = HTML::Mail->restore_file('/tmp/cpan_mail.data');
+	my $restored = HTML::Mail->restore_file('/tmp/cpan_mail.data');
 
 =head1 DESCRIPTION
 
@@ -391,6 +475,8 @@ It uses L<MIME::Lite|MIME::Lite> for all MIME related jobs, L<HTML::Parser|HTML:
 
 Email can be 'multipart/alternative' if both HTML and Text content exist and 'multipart/related' if there is only HTML content.
 
+If you want to send text-only email, then you probably won't find this module usefull at all.
+
 =head2 Method Summary
 
 =over 4
@@ -398,7 +484,7 @@ Email can be 'multipart/alternative' if both HTML and Text content exist and 'mu
 =item new
 
 Constructor. 
-Initializes the object.
+Initialises the object.
 See the L<attributes|/Attributes> section
 
 =item build
@@ -408,23 +494,23 @@ Main difference with C<new> is that it doesn't fetch content that was previously
 
 =item lwp_ua
 
-Returns the L<LWP::UserAgent|LWP::UserAgent> object used internally
+Returns the L<LWP::UserAgent|LWP::UserAgent> object used internally so that it can the customised
 
 =item dump
 
-Serializes the object to a string
+Serialises the object to a string
 
 =item dump_file
 
-Serializes the object to a file
+Serialises the object to a file
 
 =item restore
 
-Restores previously serialized object
+Restores previously serialised object
 
 =item restore_file
 
-Restores previously serialized object fom a file
+Restores previously serialised object from a file
 
 =back
 
@@ -467,7 +553,19 @@ Charset of the text part of the email. Defaults to I<iso-8859-15>.
 
 =item lwp_ua
 
-L<LWP::UserAgent|LWP::UserAgent> object used to retrieve documents
+L<LWP::UserAgent|LWP::UserAgent> object used to retrieve documents.
+The default agent has a 60 second timeout and sends I<HTML::Mail> as the agent.
+See also L<ADVANCED USAGE|/ADVANCED USAGE>.
+
+=item inline_css
+
+A true value specifies that when the HTML uses external css this content be placed in the <style> tag at the header of the document, default value is true.
+
+Don't change the default behaviour unless there is a very strong reason since most email clients won't interpret css unless they are in-lined.
+
+=item attach_links
+
+Controls which links are also included in the email. See L<Linked Media|/Linked Media>.
 
 =back
 
@@ -485,15 +583,15 @@ Using this method you can change it's options to your needs.
 	$html_mail->lwp_ua->timeout(10);
 
 This is very useful for specifying proxies, cookie parameters, etc.
-See L<LWP::UserAgent|LWP::UserAgent's manpage> for all the details.
+See L<LWP::UserAgent's manpage|LWP::UserAgent> for all the details.
 
 =head2 Persistence
 
 HTML::Mail objects are designed so that implementing persistence is easy.
 
-The method C<dump> dumps the object as a string. You can store this string in whatever way you wish to and later restore the object with the C<restore> method. There exist also methods C<dump_file> and C<restore_file> that serialize and restore the objects to and from text files.
+The method C<dump> dumps the object as a string. You can store this string in whatever way you wish to and later restore the object with the C<restore> method. There exist also methods C<dump_file> and C<restore_file> that serialise and restore the objects to and from text files.
 
-	### initialization
+	### initialisation
 	my $html_mail = HTML::Mail->new(
 	HTML    => 'http://www.cpan.org',
 	Text    => 'This is the text representation of the webpage http://www.cpan.org',
@@ -501,13 +599,13 @@ The method C<dump> dumps the object as a string. You can store this string in wh
 	To      => 'you@yourhost.org',
 	Subject => 'CPAN webpage');
 	
-	### Serialize to string
-	my $serialized = $html_mail->dump;
+	### Serialise to string
+	my $serialised = $html_mail->dump;
 
 	### Restore
-	my $hmtl_mail_restored = HTML::Mail->restore($serialized);
+	my $hmtl_mail_restored = HTML::Mail->restore($serialised);
 	
-	### Serialize to disk
+	### Serialise to disk
 	### If file exists, it's content will be erased
 	my $file = '/tmp/stored_html_mail.data';
 	$html_mail->dump_file($file);
@@ -515,7 +613,6 @@ The method C<dump> dumps the object as a string. You can store this string in wh
 	### Restore from file
 	my $hmtl_mail_restored = HTML::Mail->restore_file($file);
 	
-
 None of these methods are meant for speed.
 Be also careful when restoring data that you don't trust since these methods basically use C<eval> to restore the objects.
 
@@ -523,10 +620,10 @@ All relevant data is stored, so you can send a restored email without fetching c
 
 =head2 Rebuilding emails
 
-As of version  0.02_00 the job of reusing an object to send several emails is optimized.
+As of version  0.02_00 the job of reusing an object to send several emails is optimised.
 This is mainly due to the fact that if the HTML content is changed, media that was included on the previous build will no longer be fetched and processed. However if there is new media referred to by the new HTML content, it will be fetched and made available for next builds.
 
-This is particular useful for building customizable email campaigns, say putting the customer's name in the content. 
+This is particular useful for building customisable email campaigns, say putting the customer's name in the content. 
 
 The parsing of the HTML content is always done.
 
@@ -534,15 +631,36 @@ The parsing of the HTML content is always done.
 
 regenerates the email. The attributes and values are the same as the ones in the C<new> method.
 
+The default values are merged in each build meanings that new attributes are sticky. The default value of an attribute is the most recent one specified or the classes default
+
+=head2 Linked Media
+
+attach_links is a subroutine that determines which links will be included in the email. Gets as the argument the C<href> attribute of the tag and is expected to return a C<boolean>, a true return value includes the link a false value doesn't.
+
+	#$html_mail is supposed to have been constructed for the sake of simplicity
+	$html_mail->build(attach_links => 
+		sub{
+			my $link = shift;
+			return $link =~ /\.pdf$/
+		}
+	)
+
+	#This would include all links to pdf documents in the html
+
+By default no links are included.
+
+B<Be aware that a lot of email clients don't cope well with internally linked media>
+B<This interface is considered experimental and subject to change, use at you own risk>
+
 =head1 COMPATIBILITY
 
 =head2 Suggestions
 
 Try to use only correct HTML, at least it should be well formed.
 
-Inline CSS in HTML documents gives better results with a wider range of email clients.
+In-line CSS in HTML documents gives better results with a wider range of email clients.
 
-Try not to use Javascript, email clients don't usually support it very well and it's usually turned off for security reasons.
+Don't use Javascript, this module will not include external javascript.
 
 =head2 Email Clients
 
@@ -559,9 +677,9 @@ Full compatibility except for some CSS problems.
 
 =item Kmail 1.4.3
 
-HTML ok but usually displays both text and HTML parts with the images as attachments
+HTML OK but usually displays both text and HTML parts with the images as attachments
 
-=item Yahoo webmmail (http://mail.yahoo.com)
+=item Yahoo webmail (http://mail.yahoo.com)
 
 HTML is shown, not text and all media is ok.
 
@@ -601,19 +719,32 @@ Now considered alpha.
 
 =over 4
 
-=item CSS/Javascript 
-
-optionally inlined
-
 =item Tests
 
 better tests at install time
+
+
+=item Cid generation
+
+more robust, try using something like uuidgen
 
 =back
 
 =head1 AUTHOR
 
-Cláudio Valente, E<lt>ClaudioV@technologist.comE<gt>
+Cláudio Valente, E<lt>plank@cpan.orgE<gt>
+
+=head1 Bug Reporters
+
+I would like to thank the help of:
+
+=over 4
+
+=item Matthew Albright
+
+for bug reporting and submitting a patch
+
+=back
 
 =head1 COPYRIGHT AND LICENSE
 

@@ -8,5 +8,5 @@ WriteMakefile(
     'PREREQ_PM' => { 'MIME::Lite' => 1.0, 'HTML::Parser' => 3.0, 'URI' => 1.0 }, # e.g., Module::Name => 1.1
     ( $] >= 5.005 ?    ## Add these new keywords supported since 5.005
           (    #ABSTRACT_FROM => 'Mail.pm', # retrieve abstract from module
-            AUTHOR => 'Cláudio Valente <ClaudioV@technologist.com>' ) : () ),
+            AUTHOR => 'Cláudio Valente <plank@cpan.org>' ) : () ),
 );

@@ -3,7 +3,7 @@ HTML/Mail version 0.00_01
 
 This Module is supposed to simplify the task of sending email messages with HTML (and associated media) as well as an alternative text message.
 
-Should be OS independant, however you are also encorage to read MIME::Lite documentation.
+Should be OS independent, however you are also encouraged to read MIME::Lite documentation.
 
 perldoc MIME::Lite
 

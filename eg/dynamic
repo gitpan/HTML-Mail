@@ -5,6 +5,7 @@ use HTML::Mail;
 use strict;
 
 # Example on how to construct dynamic content and send it
+# This is quite useless in this example but with a lot of media on the html and a lot of individual recipientssomething on the lines of this might be usefull
 
 if ( $#ARGV != 2 ) {
     print <<EOF;
