@@ -1,0 +1,7 @@
+Revision history for Perl extension HTML::Mail.
+
+0.00_01  Tue Jul 29 11:38:25 2003
+	- original version; created by h2xs 1.22 with options
+		-ABX -n HTML::Mail
+0.01 Sun Aug 2 20:00:00 2003
+	- first decent working version.
