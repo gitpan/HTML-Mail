@@ -1,7 +1,21 @@
 Revision history for Perl extension HTML::Mail.
 
+0.02_00 Fri Aug 15 12:23:28 2003
+	- Media is only fetched one time. Useful for rebuilding multiple emails
+	  LWP::UserAgent used is fully specifiable now
+	  Persistence functions
+	  Tests persistence functions
+	  Pod improvements
+	  New way in which it inherits from MIME::Lite (via inclusion and AUTOLOAD)
+	  Development documentation as comments in source code
+
+0.01_05 Thu Aug  7 23:31:46 2003
+	- More documentation
+	  HTML and Text can now be content and not only URIs
+
+0.01 Sun Aug 2 20:00:00 2003
+	- first decent working version.
+
 0.00_01  Tue Jul 29 11:38:25 2003
 	- original version; created by h2xs 1.22 with options
 		-ABX -n HTML::Mail
-0.01 Sun Aug 2 20:00:00 2003
-	- first decent working version.

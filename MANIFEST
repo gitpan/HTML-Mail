@@ -3,6 +3,15 @@ Mail.pm
 Makefile.PL
 MANIFEST
 README
-t/1.t
-eg/send_page
+t/basic.t
+t/build.t
+t/serial.t
+eg/media/img1.gif
+eg/media/img2.gif
+eg/media/test.css
+eg/media/test.html
+eg/media/test.txt
+eg/sendpage
 eg/dynamic
+eg/serial
+eg/README

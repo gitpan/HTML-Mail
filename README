@@ -22,12 +22,13 @@ This module requires these other modules and libraries:
 LWP
 HTML::Parser
 MIME::Lite
+URI
 
-Any perl version > 5.6.0 should be OK.
+Any perl version >= 5.6.0 should be OK.
 
 COPYRIGHT AND LICENCE
 
-Put the correct copyright and licence information here.
+The Licence is identical to the perl licence
 
 Copyright (C) 2003 Cláudio Valente
 

@@ -1,0 +1,23 @@
+#!/usr/bin/perl -W
+use lib '../blib/lib';
+
+use HTML::Mail;
+use strict;
+
+### initialisation
+my $html_mail = new HTML::Mail(
+    HTML    => '<html><body><h1>Just testing serialization</h1></body></html>',
+    Text    => 'Just testing serialization',
+    From    => 'plank@cpan.org',
+    To      => 'plank@cpan.org',
+    Subject => "Mail Persistence function",
+);
+
+$html_mail->build();
+my $serial = $html_mail->dump();
+print $serial;
+
+my $restored = HTML::Mail->restore($serial);
+
+### Now you can do whatever you want with the mail
+#$restored->send();

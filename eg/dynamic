@@ -1,8 +1,10 @@
 #!/usr/bin/perl -W
-use lib '../blib/lib/';
+use lib '../blib/lib';
 
 use HTML::Mail;
 use strict;
+
+# Example on how to construct dynamic content and send it
 
 if ( $#ARGV != 2 ) {
     print <<EOF;
@@ -25,5 +27,4 @@ my $html_mail = new HTML::Mail(
     Subject => "HTML::Mail dynamic example",
 );
 
-$html_mail->build();
 $html_mail->send();

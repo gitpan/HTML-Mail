@@ -1,0 +1,13 @@
+Examples:
+	You may base your code in these examples
+
+dynamic:
+	Generates dynamic emails and sends them.
+	Shows how to change message fields, HTML content for sending several messages.
+	
+send_page
+	Sends an HTML page (local or remote) with a text alternative.
+	Minimal usage of the module.
+	
+serial
+	Shows how to use the simplified persistence functions of the module.

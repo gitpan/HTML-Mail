@@ -1,8 +1,10 @@
 #!/usr/bin/perl -W
-use lib '../blib/lib/';
+use lib '../blib/lib';
 
 use HTML::Mail;
 use strict;
+
+#Send's an email with a webpage included
 
 if ( $#ARGV != 1 ) {
     print <<EOF;
@@ -26,9 +28,6 @@ my $html_mail = new HTML::Mail(
     Subject => "Mail with $url",
 );
 
-$html_mail->build();
 $html_mail->send();
-
-#or if you prefer, print the message to a file, edit it and use sendmail to deliver it.
-#print html_mail->as_string
-
+$html_mail->build(Text=>undef);
+$html_mail->send;
