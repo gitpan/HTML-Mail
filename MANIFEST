@@ -1,11 +1,11 @@
 Changes
-Mail.pm
+lib/HTML/Mail.pm
 Makefile.PL
 MANIFEST
 README
-t/basic.t
-t/build.t
-t/serial.t
+t/01_basic.t
+t/02_build.t
+t/03_serial.t
 eg/media/img1.gif
 eg/media/img2.gif
 eg/media/test.css

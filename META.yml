@@ -1,8 +1,8 @@
 # http://module-build.sourceforge.net/META-spec.html
 #XXXXXXX This is a prototype!!!  It will change in the future!!! XXXXX#
 name:         HTML-Mail
-version:      0.02_01
-version_from: Mail.pm
+version:      0.02_02
+version_from: lib/HTML/Mail.pm
 installdirs:  site
 requires:
     HTML::Parser:                  3

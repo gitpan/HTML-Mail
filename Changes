@@ -1,5 +1,11 @@
 Revision history for Perl extension HTML::Mail.
 
+0.02_02 Fri Apr 23 19:58:13 WEST 2004
+	- Fix so that tests don't break under windows or systems without sendmail
+	  Changed file layout
+	  rebuild bugfix (thanx Daniel Wijnands for the report)
+	  Typos
+
 0.02_01 Sun Feb 22 15:06:36 WET 2004
 	- Patch by Matthew Albright
 	  in-line css

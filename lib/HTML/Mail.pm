@@ -1,7 +1,7 @@
 package HTML::Mail;
 
 
-our $VERSION = '0.02_01';
+our $VERSION = '0.02_02';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -22,9 +22,11 @@ sub new {
 	my ($package, %params) = @_;
 
 	my $self = bless {}, $package;
-	$self->{'_original_params'} = \%params;
-	$self->build();
-	
+	$self->{'_original_params'} = {};
+	$self->{'_cache'}      = {};
+
+	$self->build(%params);
+
 	return $self;
 }
 
@@ -36,13 +38,13 @@ sub _set_default_lwp_ua {
 		'agent'   => 'HTML::Mail',
 		'timeout' => 60,
 	);
+	return $self;
 }
 
 sub build {
 	my ($self, %params) = @_;
 
 	$self->_reset_html;
-	$self->_reset_links;
 
 	%params = (%{$self->{'_original_params'}}, %params);
 
@@ -110,6 +112,12 @@ sub _parse_html {
 		text_h      => [\&_tag_end, 'self, text'],
 	);
 
+	my $content = $self->{'_cache'}->{$self->{'HTML'}};
+	if(defined($content)){
+		$self->parse($content);
+		return $self;
+	}
+
 	my $response;
 	eval { $response = $self->_get($self->{'HTML'}); };
 	if ($@ or not ($response and $response->is_success)) {
@@ -122,8 +130,10 @@ sub _parse_html {
 	}
 	else {
 		$self->{'_html_base'} = $response->base();
+		$self->{'_cache'}->{$self->{'HTML'}} = $response->content;
 		$self->parse($response->content);
 	}
+	return $self;
 }
 
 #Return LWP::UserAgent used to make requests
@@ -142,6 +152,7 @@ sub lwp_ua{
 
 sub _get {
 	my ($self, $uri) = @_;
+	#warn "Getting $uri";
 
 	if (!$self || !$self->{'_ua'}) {
 		die "User agent not defined";
@@ -154,9 +165,9 @@ sub _get {
 	my $response = $self->{'_ua'}->get($uri);
 
 	if (!$response->is_success) {
-		croak "Error while making request [ GET ", $response->request->uri, "]\n", $response->status_line;
+		die "Error while making request [ GET ", $response->request->uri, "]\n", $response->status_line;
 	}
-
+	
 	return $response;
 }
 
@@ -220,7 +231,7 @@ sub _get_inline_content {
 }
 
 sub _get_links {
-	return shift->{'links'};
+	return shift->{'links'} || {};;
 }
 
 sub _reset_links {
@@ -343,7 +354,6 @@ sub _attach_media {
 		}
 	}
 
-	
 	if($self->{'Text'}){
 		$self->{'_message'}->attach($related);
 	}
@@ -370,10 +380,15 @@ sub _get_media {
 sub _attach_text {
 	my $self    = shift;
 	my $text    = $self->{'Text'};
-	my $content = $text;
+	my $content = $self->{'_cache'}->{$text};
 
-	#If it fails, Text is the actual text and not an URI
-	eval { $content = $self->_get($text)->content; };
+	if(!defined($content)){
+		eval { $content = $self->_get($text)->content; };
+		if($@){
+			$content = $text;
+		}
+		$self->{'_cache'}->{$text} = $content;
+	}
 
     my $text_part = new MIME::Lite(
         'Type'        => 'TEXT',
@@ -385,6 +400,7 @@ sub _attach_text {
 	$text_part->attr('content-type.charset' => $self->{'text_charset'});
 
 	$self->{'_message'}->attach($text_part);
+	return $self;
 }
 
 sub dump {
@@ -430,8 +446,6 @@ sub AUTOLOAD {
 		return $self->{'_message'}->$AUTOLOAD(@_);
 	}
 }
-
-
 
 1;
 __END__
@@ -654,6 +668,13 @@ B<This interface is considered experimental and subject to change, use at you ow
 
 =head1 COMPATIBILITY
 
+=head2 Sending email
+
+This module uses L<MIME::Lite|MIME::Lite> to send the emails.
+The default behaviour of the C<send> method is to use sendmail, if this is not possible try sending the mail using smtp.
+C<$html_mail->send('smtp','smtp_server.org')>.
+Please consult the documentation for further details.
+
 =head2 Suggestions
 
 Try to use only correct HTML, at least it should be well formed.
@@ -687,9 +708,9 @@ HTML is shown, not text and all media is ok.
 
 Unknown (reports welcome)
 
-=item Outlook
+=item Outlook Express 6
 
-Unknown (reports welcome)
+HTML is shown. When the user prefers text, text content is shown together with a text rendering of the HTML.
 
 =item Eudora
 
@@ -723,7 +744,6 @@ Now considered alpha.
 
 better tests at install time
 
-
 =item Cid generation
 
 more robust, try using something like uuidgen
@@ -744,7 +764,12 @@ I would like to thank the help of:
 
 for bug reporting and submitting a patch
 
+=item Daniel Wijnands
+
+for bug reporting related with email rebuilding
+
 =back
+
 
 =head1 COPYRIGHT AND LICENSE
 

@@ -1,5 +1,5 @@
 #!/usr/bin/perl -W
-use lib '../blib/lib';
+use lib '../lib';
 
 use HTML::Mail;
 use strict;
