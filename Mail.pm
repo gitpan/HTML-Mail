@@ -28,7 +28,7 @@ our @EXPORT = qw(
 
 );
 
-our $VERSION = '0.01_02';
+our $VERSION = '0.01_03';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -187,7 +187,7 @@ sub _tag_start {
 		$self->{'_html_base'} = $attr->{'href'};
 	}
 	
-	$self->_tag_filter_link($attr, 'href') if $tag eq 'link';
+	$self->_tag_filter_link($attr, 'href') if ($tag eq 'link' and $attr->{'rev'} eq 'stylesheet');
 	$self->_tag_filter_link($attr, 'background');
 	$self->_tag_filter_link($attr, 'src');
 	$self->_add_html(@_);
@@ -321,6 +321,8 @@ Mail::HTML - Perl extension for sending emails with embeded HTML and media
  From    => 'me@myhost.org',
  To      => 'you@yourhost.org',
  Subject => 'CPAN webpage');
+ 
+ $html_mail->build();
 
  ### Dump as string (inherited from MIME::Lite)
  my $sting = $html_mail->as_string();
