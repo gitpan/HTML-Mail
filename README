@@ -1,4 +1,4 @@
-HTML/Mail version 0.00_01
+HTML/Mail version 0.02_04
 =========================
 
 This Module is supposed to simplify the task of sending email messages with HTML (and associated media) as well as an alternative text message.
@@ -24,7 +24,19 @@ HTML::Parser
 MIME::Lite
 URI
 
+Data::UUID (OPTIONAL, RECOMMENDED)	If present cids will be globally unique, if not a simple scheme will be used, (see gen_cid in the documentation)
+
 Any perl version >= 5.6.0 should be OK.
+
+NOTICE
+
+Testing sends an email (multipart/alternative with static html and text) to plank@cpan.org.
+No information about you system is sent, only static content.
+If you find this unacceptable:
+	* don't test the module
+	* see the end of file t/01_basic.t and modify accordingly
+
+I could ask something while creating the makefile, but I wish to maintain the build procedure fully automatic.
 
 COPYRIGHT AND LICENCE
 

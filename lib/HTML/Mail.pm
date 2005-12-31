@@ -1,13 +1,14 @@
 package HTML::Mail;
 
-our $VERSION = '0.02_03';
+our $VERSION = '0.02_04';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
 use LWP::UserAgent;
-use URI;
-use HTML::Parser;
-use MIME::Lite;
+require URI;
+require HTML::Parser;
+require MIME::Lite;
+
 use Carp qw(carp croak);
 
 use strict;
@@ -15,7 +16,31 @@ use warnings;
 
 our @ISA = qw(HTML::Parser);
 
-use vars qw($SIMPLE_CID $AUTOLOAD);
+our $SIMPLE_CID;
+our $AUTOLOAD;
+
+#see if Data::UUID if present and use cid generation possible
+eval{
+	require Data::UUID;
+};
+if($@){
+	#UUID not present, use fallback cid generation (should be OK)
+
+*gen_cid = 
+	sub{
+		my ($self, $uri) = @_;
+		return time."_${$}_".(int rand(100_000)).'_'.$self->{'cid'}++;
+	};
+}else{
+	#UUID present, cids will be universally unique
+
+	my $UUID = Data::UUID->new();
+*gen_cid = 
+	sub{
+		my ($self, $uri) = @_;
+		return $UUID->to_string($UUID->create);
+	};
+}
 
 sub new {
 	my ($package, %params) = @_;
@@ -216,7 +241,7 @@ sub _add_link {
 	my $uri = $self->_create_uri ($_[0]);
 
 	if(!exists($self->{'links'}->{$uri}->[0])){
-		my $cid = ($SIMPLE_CID ? '': int rand(10000)) . "_" . $self->{'cid'}++;
+		my $cid = ($SIMPLE_CID ? $self->{'cid'}++: $self->gen_cid($uri));
 		$self->_get_media($uri, $cid);
 	}
 
@@ -492,12 +517,12 @@ HTML::Mail - Perl extension for sending emails with embedded  HTML and media
 
 =head1 DESCRIPTION
 
-B<HTML::Mime> is supposed to help with the task of sending emails with HTML and images (or other media) embedded .
+B<HTML::Mail> is supposed to help with the task of sending emails with HTML and images (or other media) embedded.
 It uses L<MIME::Lite|MIME::Lite> for all MIME related jobs, L<HTML::Parser|HTML::Parser> to find related files and change the URIs and L<LWP::UserAgent|LWP::UserAgent> to retrieve the related files.
 
 Email can be 'multipart/alternative' if both HTML and Text content exist and 'multipart/related' if there is only HTML content.
 
-If you want to send text-only email, you probably won't find this module usefull at all.
+If all you want is to send text-only email, you probably won't find this module useful at all, or at best a huge overkill.
 
 =head2 Method Summary
 
@@ -528,11 +553,17 @@ Serialises the object to a file
 
 =item restore
 
-Restores previously serialised object
+Restores previously serialised object from a string
 
 =item restore_file
 
 Restores previously serialised object from a file
+
+=item gen_cid
+
+Method to generate cids.
+Receives $self and the uri to associate the cid to.
+If you need to generate your own cids (say, add www.host.com) you should subclass this method.
 
 =back
 
@@ -680,7 +711,7 @@ B<This interface is considered experimental and subject to change, use at your o
 
 This module uses L<MIME::Lite|MIME::Lite> to send the emails.
 The default behaviour of the C<send> method is to use sendmail, if this is not possible try sending the mail using smtp.
-C<<$html_mail->send('smtp','smtp_server.org')>>.
+C<$html_mail-E<gt>send('smtp','smtp_server.org')>.
 Please consult the documentation for further details.
 
 =head2 Suggestions
@@ -689,14 +720,14 @@ Try to use only correct HTML, at least it should be well formed.
 
 In-line CSS in HTML documents gives better results with a wider range of email clients.
 
-Don't use Javascript, this module will not include external javascript.
+Don't use Javascript, this module will not include external Javascript, and most clients won't interpret/run the code at all.
 
-this module doesn't support frames/iframes so don't use them for now.
+This module doesn't support frames/iframes so don't use them for now. Client support for frames is unknown to the author.
 
 =head2 Email Clients
 
 Reports on how clients display emails generated using this module are very welcome.
-Successfull/unsuccessful stories also welcome.
+Successful/unsuccessful stories also welcome.
 
 See the author's email at the end.
 
@@ -712,7 +743,7 @@ HTML OK but usually displays both text and HTML parts with the images as attachm
 
 =item Yahoo webmail (http://mail.yahoo.com)
 
-HTML is shown, not text and all media is ok.
+HTML is shown, not text and all media is OK.
 
 =item Hotmail (http://www.hotmail.com)
 
@@ -744,7 +775,7 @@ The F<eg> directory for some examples on how to use the package
 
 =head1 DEVELOPMENT STATUS
 
-Now considered alpha.
+Considered pre-beta.
 
 =head1  TODO LIST
 
@@ -754,9 +785,9 @@ Now considered alpha.
 
 better tests at install time
 
-=item Cid generation
+=item Not included media
 
-more robust, try using something like uuidgen
+make possible to choose which media to include and which to only link
 
 =back
 
@@ -787,7 +818,7 @@ for reporting a bug with relative links and several limitations regarding frames
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2003 by Cláudio Valente
+Copyright 2004 by Cláudio Valente
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself. 
 

@@ -1,13 +1,19 @@
 Revision history for Perl extension HTML::Mail.
 
+0.02_04 Sat Dec 31 16:36:58 WET 2005
+	Data::UUID now used (optional) to generate cids
+	updated README
+	changed gif images to png in test media
+	cleanup tests a bit
+
 0.02_03 Mon May  9 20:02:43 WEST 2004
-	Fixed bug with relative links (thanks calvin huang)
-	Improved documentaion (typos + limitations)
+	Fixed bug with relative links (thanks Calvin Huang)
+	Improved documentation (typos + limitations)
 
 0.02_02 Fri Apr 23 19:58:13 WEST 2004
 	- Fix so that tests don't break under windows or systems without sendmail
 	  Changed file layout
-	  rebuild bugfix (thanx Daniel Wijnands for the report)
+	  rebuild bugfix (thanks Daniel Wijnands for the report)
 	  Typos
 
 0.02_01 Sun Feb 22 15:06:36 WET 2004

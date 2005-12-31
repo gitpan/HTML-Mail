@@ -6,8 +6,8 @@ README
 t/01_basic.t
 t/02_build.t
 t/03_serial.t
-eg/media/img1.gif
-eg/media/img2.gif
+eg/media/img1.png
+eg/media/img2.png
 eg/media/test.css
 eg/media/test.html
 eg/media/test.txt
