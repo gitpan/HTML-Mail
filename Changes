@@ -1,5 +1,8 @@
 Revision history for Perl extension HTML::Mail.
 
+0.02_05 Mon Sep 25 18:29:02 WEST 2006
+	solved minor base href bug
+
 0.02_04 Sat Dec 31 16:36:58 WET 2005
 	Data::UUID now used (optional) to generate cids
 	updated README

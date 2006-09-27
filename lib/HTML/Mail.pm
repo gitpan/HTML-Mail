@@ -1,6 +1,6 @@
 package HTML::Mail;
 
-our $VERSION = '0.02_04';
+our $VERSION = '0.02_05';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -47,7 +47,7 @@ sub new {
 
 	my $self = bless {}, $package;
 	$self->{'_original_params'} = {};
-	$self->{'_cache'}      = {};
+	$self->{'_cache'}           = {};
 
 	$self->build(%params);
 
@@ -91,6 +91,16 @@ sub build {
 	$self->{'inline_css'} = exists($params{'inline_css'}) ? 
 		$params{'inline_css'} :
 		1;
+
+	#by default don't attach anything linked
+	$self->{'attach_uri'} = sub {return 1;};
+	if(exists($params{'attach_uri'})){
+		if(ref($params{'attach_uri'}) eq 'CODE'){
+			$self->{'attach_uri'} = $params{'attach_uri'};
+		}else{
+			carp "attach_uri specified but not a subroutine reference. Ignoring and using default.";
+		}
+	}
 
 	#by default don't attach anything linked
 	$self->{'attach_links'} = sub {return 0;};
@@ -172,6 +182,12 @@ sub lwp_ua{
 	return $self->{'_ua'};
 }
 
+#default behaviour: attach all media to email
+sub attach_uri{
+	my ($self, $url) = @_;
+	return $self->{'attach_uri'}->($url);
+}
+
 #Makes a GET request and returns the content
 
 sub _get {
@@ -232,13 +248,16 @@ sub _get_html {
 sub _create_uri {
 	my $self = shift;
 	defined($_[0]) or die "need a link to create a uri";
-	return URI->new_abs($_[0], $self->{'_html_base'});
+	my $base = $self->{'_html_base'};
+	if(defined($base)){
+		return URI->new_abs($_[0], $base);
+	}else{
+		return URI->new($_[0]);
+	}
 }
 
 sub _add_link {
-	my $self = shift;
-
-	my $uri = $self->_create_uri ($_[0]);
+	my ($self, $uri) = @_;
 
 	if(!exists($self->{'links'}->{$uri}->[0])){
 		my $cid = ($SIMPLE_CID ? $self->{'cid'}++: $self->gen_cid($uri));
@@ -290,14 +309,14 @@ sub _tag_start {
 			$self->_tag_filter_link($attr, 'href');
 		}
 	}elsif($tag eq 'a' and defined($attr->{'href'})){
-		$attr->{'href'} = URI->new_abs($attr->{'href'},$self->{'_html_base'});
+		$attr->{'href'} = $self->_create_uri($attr->{'href'});
 	}
 	$self->_tag_filter_link($attr, 'background');
 	$self->_tag_filter_link($attr, 'src') if ($tag ne 'script');
 
 	#selective attach of linked media
 	if(defined($attr->{'href'})){
-		if($self->{'attach_links'}->($attr->{'href'})){
+		if($self->{'attach_links'}->($self->_create_uri($attr->{'href'}))){
 			$self->_tag_filter_link($attr, 'href');
 		}
 	}
@@ -326,9 +345,16 @@ sub _add_inline_content{
 
 sub _tag_filter_link {
 	my ($self, $attrs, $attr) = @_;
+
 	if (exists($attrs->{$attr})) {
-		my $link = $attrs->{$attr};
-		$attrs->{$attr} = "cid:" . $self->_add_link($link);
+		my $uri = $self->_create_uri ($attrs->{$attr});
+
+		if($self->attach_uri($uri)){
+			$attrs->{$attr} = "cid:" . $self->_add_link($uri);
+		}else{
+			#place absolute url just in case
+			$attrs->{$attr} = $uri->as_string;
+		}
 	}
 	return $self;
 }
@@ -517,7 +543,7 @@ HTML::Mail - Perl extension for sending emails with embedded  HTML and media
 
 =head1 DESCRIPTION
 
-B<HTML::Mail> is supposed to help with the task of sending emails with HTML and images (or other media) embedded.
+B<HTML::Mail> is supposed to help with the task of sending emails with HTML and images (or other media) embedded or externally linked.
 It uses L<MIME::Lite|MIME::Lite> for all MIME related jobs, L<HTML::Parser|HTML::Parser> to find related files and change the URIs and L<LWP::UserAgent|LWP::UserAgent> to retrieve the related files.
 
 Email can be 'multipart/alternative' if both HTML and Text content exist and 'multipart/related' if there is only HTML content.
@@ -541,23 +567,23 @@ Main difference with C<new> is that it doesn't fetch content that was previously
 
 =item lwp_ua
 
-Returns the L<LWP::UserAgent|LWP::UserAgent> object used internally so that it can the customised
+Returns the L<LWP::UserAgent|LWP::UserAgent> object used internally so that it can the customized
 
 =item dump
 
-Serialises the object to a string
+Serializes the object to a string
 
 =item dump_file
 
-Serialises the object to a file
+Serializes the object to a file
 
 =item restore
 
-Restores previously serialised object from a string
+Restores previously serialized object from a string
 
 =item restore_file
 
-Restores previously serialised object from a file
+Restores previously serialized object from a file
 
 =item gen_cid
 
@@ -590,7 +616,7 @@ If you prefer, you can use it to specify the actual HTML data as a string
 
 =item Text [URI or STRING]
 
-The URL of Text data to send in email. Similar to the HTML attribute.
+The URL of Text data to send in email. Similar to the HTML attribute. You can also specify the actual text data as a string.
 
 =item From, To, Subject
 
@@ -616,6 +642,11 @@ A true value specifies that when the HTML uses external css this content be plac
 
 Don't change the default behaviour unless there is a very strong reason since most email clients won't interpret css unless they are in-lined.
 
+=item attach_uri
+
+Controls which media is attached in the email or referenced to an external source.
+See L<Conditional attachment of media|/Conditional attachment of media>
+
 =item attach_links
 
 Controls which links are also included in the email. See L<Linked Media|/Linked Media>.
@@ -627,7 +658,7 @@ Controls which links are also included in the email. See L<Linked Media|/Linked 
 =head2 LWP::UserAgent options
 
 The C<lwp_ua> method returns the instance of L<LWP::UserAgent|LWP::UserAgent> used to make the request.
-Using this method you can change it's options to your needs.
+Using this method you can change its options to your needs.
 
 	my $ua = LWP::UserAgent->new(%options);
 	$html_mail->lwp_ua($ua);
@@ -642,7 +673,7 @@ See L<LWP::UserAgent's manpage|LWP::UserAgent> for all the details.
 
 HTML::Mail objects are designed so that implementing persistence is easy.
 
-The method C<dump> dumps the object as a string. You can store this string in whatever way you wish to and later restore the object with the C<restore> method. There exist also methods C<dump_file> and C<restore_file> that serialise and restore the objects to and from text files.
+The method C<dump> dumps the object as a string. You can store this string in whatever way you wish to and later restore the object with the C<restore> method. There exist also methods C<dump_file> and C<restore_file> that serialize and restore the objects to and from text files.
 
 	### initialisation
 	my $html_mail = HTML::Mail->new(
@@ -653,13 +684,13 @@ The method C<dump> dumps the object as a string. You can store this string in wh
 	Subject => 'CPAN webpage');
 	
 	### Serialise to string
-	my $serialised = $html_mail->dump;
+	my $serial = $html_mail->dump;
 
 	### Restore
-	my $hmtl_mail_restored = HTML::Mail->restore($serialised);
+	my $hmtl_mail_restored = HTML::Mail->restore($serial);
 	
 	### Serialise to disk
-	### If file exists, it's content will be erased
+	### If file exists, its content will be erased
 	my $file = '/tmp/stored_html_mail.data';
 	$html_mail->dump_file($file);
 
@@ -673,10 +704,10 @@ All relevant data is stored, so you can send a restored email without fetching c
 
 =head2 Rebuilding emails
 
-As of version  0.02_00 the job of reusing an object to send several emails is optimised.
+As of version  0.02_00 the job of reusing an object to send several emails is optimized.
 This is mainly due to the fact that if the HTML content is changed, media that was included on the previous build will no longer be fetched and processed. However if there is new media referred to by the new HTML content, it will be fetched and made available for next builds.
 
-This is particular useful for building customisable email campaigns, say putting the customer's name in the content. 
+This is particular useful for building customizable email campaigns, say putting the customer's name in the content. 
 
 The parsing of the HTML content is always done.
 
@@ -684,7 +715,36 @@ The parsing of the HTML content is always done.
 
 regenerates the email. The attributes and values are the same as the ones in the C<new> method.
 
-The default values are merged in each build meanings that new attributes are sticky. The default value of an attribute is the most recent one specified or the classes default
+The default values are merged in each build meaning that new attributes are sticky. The default value of an attribute is the most recent one specified or the classes default
+
+=head2 Conditional attachment of media
+
+For some reason, there might be some media which should not be attached to the email, but fetched at view time.
+The C<attach_uri> method controls this behaviour.
+By default all media is attached.
+This behaviour can be changed either by inheriting from HTML::Mail and redefining the C<attach_uri> method or by specifying the C<attach_uri> field at construction.
+
+The method's signature is:
+
+  package MyMail;
+  use base ('HTML::Mail');
+
+  sub attach_uri{
+	my ($self, $uri) = @_;
+
+	return 1; #to attach, 0 to not attach
+  }
+
+Where C<$uri> is an L<URI|URI> object. (by overloading it can be treated just like a string in most circumstances)
+
+Or if you prefer
+
+  my $mail = HTML::Mail->new(
+    #some parameters
+    'attach_uri' => sub {my $uri = shift; return $uri->scheme !~ /https??/}
+  );
+
+will not attach all media fetched via http or https.
 
 =head2 Linked Media
 
@@ -712,7 +772,15 @@ B<This interface is considered experimental and subject to change, use at your o
 This module uses L<MIME::Lite|MIME::Lite> to send the emails.
 The default behaviour of the C<send> method is to use sendmail, if this is not possible try sending the mail using smtp.
 C<$html_mail-E<gt>send('smtp','smtp_server.org')>.
-Please consult the documentation for further details.
+
+The author has received a report that at least on a Windows 2000 Server system using
+
+  $html_mail->send('smtp','mailhost');
+
+was successful in sending the email.
+So far this behaviour has not been reproduced on any other system so use this tip at your own risk.
+
+Please consult the L<MIME::Lite|MIME::Lite> documentation for further details.
 
 =head2 Suggestions
 
@@ -785,10 +853,6 @@ Considered pre-beta.
 
 better tests at install time
 
-=item Not included media
-
-make possible to choose which media to include and which to only link
-
 =back
 
 =head1 AUTHOR
@@ -818,7 +882,7 @@ for reporting a bug with relative links and several limitations regarding frames
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2004 by Cláudio Valente
+Copyright 2006 by Cláudio Valente
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself. 
 

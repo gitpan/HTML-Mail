@@ -26,6 +26,8 @@ my $html_mail = new HTML::Mail(
     From    => 'plank@cpan.org',
     To      => $email,
     Subject => "Mail with $url",
+	#uncomment to not attach external media
+	#'attach_uri' => sub {my $uri = shift; return $uri->scheme !~ /http/}
 );
 
 $html_mail->send();

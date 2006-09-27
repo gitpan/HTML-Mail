@@ -36,13 +36,13 @@ If you find this unacceptable:
 	* don't test the module
 	* see the end of file t/01_basic.t and modify accordingly
 
-I could ask something while creating the makefile, but I wish to maintain the build procedure fully automatic.
+I could ask something while creating the Makefile, but I wish to maintain the build procedure fully automatic.
 
 COPYRIGHT AND LICENCE
 
 The Licence is identical to the perl licence
 
-Copyright (C) 2003 Cláudio Valente
+Copyright (C) 2006 Cláudio Valente
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself. 
