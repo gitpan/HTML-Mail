@@ -9,10 +9,11 @@ BEGIN { use_ok('HTML::Mail') };
 #########################
 
 use Cwd 'abs_path';
+use File::Spec::Functions;
 		   
 my $html_mail = HTML::Mail->new(
-	HTML    => "file://" . abs_path('eg/media') . '/test.html',
-	Text    => "file://" . abs_path('eg/media') . '/test.txt',
+	HTML    => "file://" . abs_path(catfile('eg','media', 'test.html')),
+	Text    => "file://" . abs_path(catfile('eg','media', 'test.txt')),
 	From    => 'plank@cpan.org',
 	To      => 'plank@cpan.org',
 	Subject => 'Test Build webpage on localdisk',

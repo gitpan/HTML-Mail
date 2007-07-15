@@ -1,17 +1,22 @@
 Revision history for Perl extension HTML::Mail.
 
+0.0.3 Sat Jul 14 12:09:28 WEST 2007
+	- added strict_download flag to control whether to die when downloading media fails
+	  now considered beta
+
+
 0.02_05 Mon Sep 25 18:29:02 WEST 2006
-	solved minor base href bug
+	- solved minor base href bug (thanks Eduardo Correia)
 
 0.02_04 Sat Dec 31 16:36:58 WET 2005
-	Data::UUID now used (optional) to generate cids
-	updated README
-	changed gif images to png in test media
-	cleanup tests a bit
+	- Data::UUID now used (optional) to generate cids
+	  updated README
+	  changed gif images to png in test media
+	  cleanup tests a bit
 
 0.02_03 Mon May  9 20:02:43 WEST 2004
-	Fixed bug with relative links (thanks Calvin Huang)
-	Improved documentation (typos + limitations)
+	- Fixed bug with relative links (thanks Calvin Huang)
+	  Improved documentation (typos + limitations)
 
 0.02_02 Fri Apr 23 19:58:13 WEST 2004
 	- Fix so that tests don't break under windows or systems without sendmail

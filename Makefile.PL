@@ -13,7 +13,7 @@ WriteMakefile(
 	},
     ( $] >= 5.005 ?    ## Add these new keywords supported since 5.005
           (    #ABSTRACT_FROM => 'Mail.pm', # retrieve abstract from module
-            AUTHOR => 'Cl·udio Valente <plank@cpan.org>' ) : () ),
+            AUTHOR => 'Cl√°udio Valente <plank@cpan.org>' ) : () ),
 );
 
 eval{

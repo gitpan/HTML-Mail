@@ -1,6 +1,6 @@
 package HTML::Mail;
 
-our $VERSION = '0.02_05';
+our $VERSION = '0.03';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -88,9 +88,9 @@ sub build {
 		}
 	}
 	
-	$self->{'inline_css'} = exists($params{'inline_css'}) ? 
-		$params{'inline_css'} :
-		1;
+	for my $key qw(inline_css strict_download) {
+		$self->{$key} = exists($params{$key}) ? $params{$key} : 1;
+	}
 
 	#by default don't attach anything linked
 	$self->{'attach_uri'} = sub {return 1;};
@@ -112,8 +112,8 @@ sub build {
 		}
 	}
 
-	$self->{'html_charset'} = $params{'html_charset'} || 'iso-8859-15';
-	$self->{'text_charset'} = $params{'html_charset'} || 'iso-8859-15';
+	$self->{'html_charset'}    = $params{'html_charset'} || 'iso-8859-15';
+	$self->{'text_charset'}    = $params{'html_charset'} || 'iso-8859-15';
 
 	$self->{'_original_params'} =  \%params;
 	
@@ -153,12 +153,14 @@ sub _parse_html {
 	}
 
 	my $response;
-	eval { $response = $self->_get($self->{'HTML'}); };
+	eval { $response = $self->_get($self->{'HTML'}, 1, 1); };
 	if ($@ or not ($response and $response->is_success)) {
 		delete($self->{'_html_base'});
 		if ($self->{'HTML'} =~ /<\s*html.*>/i) {
+			#HTML is the content itself
 			$self->parse($self->{'HTML'});
 		}else {
+			#couldn't get HTML so can't do anything
 			die $@;
 		}
 	}
@@ -188,11 +190,10 @@ sub attach_uri{
 	return $self->{'attach_uri'}->($url);
 }
 
-#Makes a GET request and returns the content
+#Makes a GET request and returns the response
 
 sub _get {
-	my ($self, $uri) = @_;
-	#warn "Getting $uri";
+	my ($self, $uri, $nowarn, $die) = @_;
 
 	if (!$self || !$self->{'_ua'}) {
 		die "User agent not defined";
@@ -204,11 +205,21 @@ sub _get {
 
 	my $response = $self->{'_ua'}->get($uri);
 
-	if (!$response->is_success) {
-		die "Error while making request [ GET ", $response->request->uri, "]\n", $response->status_line;
+	if ($response->is_success) {
+		return $response;
+	}else{
+		my $uri2 = $response->request->uri;
+		my $error = "Error while making request [GET ". $uri. ($uri eq $uri2 ? "]" : " -> [$uri2]")."\n". $response->status_line;
+		if( $self->{'strict_download'} or $die){
+			die $error;
+		}else{
+			unless( $nowarn ){
+				carp $error;
+			}
+			#undef by default
+			return;
+		}
 	}
-	
-	return $response;
 }
 
 sub _add_html {
@@ -259,19 +270,30 @@ sub _create_uri {
 sub _add_link {
 	my ($self, $uri) = @_;
 
-	if(!exists($self->{'links'}->{$uri}->[0])){
+	if(!exists($self->{'links'}->{$uri})){
 		my $cid = ($SIMPLE_CID ? $self->{'cid'}++: $self->gen_cid($uri));
 		$self->_get_media($uri, $cid);
 	}
 
-	return $self->{'links'}->{$uri}->[0];
+	if ( exists( $self->{'links'}->{$uri} ) ) {
+		return $self->{'links'}->{$uri}->[0];
+	}
+	else {
+		return;
+	}
 }
 
 sub _get_inline_content {
 	my $self = shift;
 
 	my $uri = $self->_create_uri ($_[0]);
-	return $self->{'inline_links'}->{$uri} ||= $self->_get($uri)->content;
+	my $response = $self->_get($uri);
+
+	if( defined $response ){
+		return $self->{'inline_links'}->{$uri} ||= $self->_get($uri)->content;
+	}else{
+		return '';
+	}
 }
 
 sub _get_links {
@@ -303,8 +325,7 @@ sub _tag_start {
 		exists($attr->{'href'})
 	){
 		if($self->{'inline_css'}){
-			my $content = $self->_add_inline_content(@_);
-			return;
+			return $self->_add_inline_content(@_);
 		}else{
 			$self->_tag_filter_link($attr, 'href');
 		}
@@ -350,7 +371,13 @@ sub _tag_filter_link {
 		my $uri = $self->_create_uri ($attrs->{$attr});
 
 		if($self->attach_uri($uri)){
-			$attrs->{$attr} = "cid:" . $self->_add_link($uri);
+			my $cid = $self->_add_link($uri);
+			if(defined $cid){
+				$attrs->{$attr} = "cid:" . $cid;
+			}else{
+				#just remove content
+				$attrs->{$attr} = '';
+			}
 		}else{
 			#place absolute url just in case
 			$attrs->{$attr} = $uri->as_string;
@@ -416,21 +443,26 @@ sub _attach_media {
 }
 
 sub _get_media {
-	my ($self, $uri, $cid) = @_;
+	my ( $self, $uri, $cid ) = @_;
 
 	my $response = $self->_get($uri);
 
-	my $part = MIME::Lite->new(
-	  'Encoding'    => 'base64',
-	  'Disposition' => 'attachment',
-	  'Data'        => $response->content,
-	  'Datestamp'   => undef,
-	);
+	if (    $response
+		and $response->can('content')
+		and $response->can('content_type') )
+	{
+		my $part = MIME::Lite->new(
+			'Encoding'    => 'base64',
+			'Disposition' => 'attachment',
+			'Data'        => $response->content,
+			'Datestamp'   => undef,
+		);
 
-	$part->attr('Content-type' => $response->content_type);
-	$part->attr('Content-ID'   => "<$cid>");
+		$part->attr( 'Content-type' => $response->content_type );
+		$part->attr( 'Content-ID'   => "<$cid>" );
 
-	$self->{'links'}->{$uri} = [$cid, $part];
+		$self->{'links'}->{$uri} = [ $cid, $part ];
+	}
 	return $self;
 }
 
@@ -440,8 +472,8 @@ sub _attach_text {
 	my $content = $self->{'_cache'}->{$text};
 
 	if(!defined($content)){
-		eval { $content = $self->_get($text)->content; };
-		if($@){
+		eval { $content = $self->_get($text, 1, 1)->content; };
+		if(not $content or $@){
 			$content = $text;
 		}
 		$self->{'_cache'}->{$text} = $content;
@@ -651,6 +683,14 @@ See L<Conditional attachment of media|/Conditional attachment of media>
 
 Controls which links are also included in the email. See L<Linked Media|/Linked Media>.
 
+=item strict_download
+
+Boolean controling whether to die when downloading of media fails. Default True so failing to download media results in a fatal error.
+
+If you are sending email from content with broken images it might be a good idea to turn this on since otherwise the email building procedure will fail.
+
+Use at your own risk.
+
 =back
 
 =head1 ADVANCED USAGE
@@ -741,10 +781,10 @@ Or if you prefer
 
   my $mail = HTML::Mail->new(
     #some parameters
-    'attach_uri' => sub {my $uri = shift; return $uri->scheme !~ /https??/}
+    'attach_uri' => sub {my $uri = shift; return $uri->scheme !~ /^(ftp|file)/i}
   );
 
-will not attach all media fetched via http or https.
+will not attach any media fetched via ftp or from the local filesystem.
 
 =head2 Linked Media
 
@@ -779,6 +819,7 @@ The author has received a report that at least on a Windows 2000 Server system u
 
 was successful in sending the email.
 So far this behaviour has not been reproduced on any other system so use this tip at your own risk.
+If you have any information regarding this issue, please contact the author.
 
 Please consult the L<MIME::Lite|MIME::Lite> documentation for further details.
 
@@ -843,7 +884,7 @@ The F<eg> directory for some examples on how to use the package
 
 =head1 DEVELOPMENT STATUS
 
-Considered pre-beta.
+Considered beta.
 
 =head1  TODO LIST
 
@@ -857,7 +898,7 @@ better tests at install time
 
 =head1 AUTHOR
 
-Cl·udio Valente, E<lt>plank@cpan.orgE<gt>
+Cl√°udio Valente, E<lt>plank@cpan.orgE<gt>
 
 =head1 Bug Reporters
 
@@ -877,12 +918,21 @@ for bug reporting related with email rebuilding
 
 for reporting a bug with relative links and several limitations regarding frames and iframes
 
+=item Eduardo Correia
+
+for reporting a bug regarding documents with no base URI specified
+
+
+=item  Marc Logghe
+
+for making suggestions regarding handling of broken links (this suggestion eventually led to the C<strict_download> flag)
+
 =back
 
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright 2006 by Cl·udio Valente
+Copyright 2007 by Cl√°udio Valente
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself. 
 
