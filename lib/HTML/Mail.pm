@@ -1,6 +1,6 @@
 package HTML::Mail;
 
-our $VERSION = '0.03';
+our $VERSION = '0.10';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -541,6 +541,8 @@ sub AUTOLOAD {
 1;
 __END__
 # Below is stub documentation for your module. You'd better edit it!
+
+=encoding utf-8
 
 =head1 NAME
 
