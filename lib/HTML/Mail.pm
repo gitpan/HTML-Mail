@@ -1,6 +1,6 @@
 package HTML::Mail;
 
-our $VERSION = '0.10';
+our $VERSION = '0.11';
 $VERSION = eval $VERSION;    # see L<perlmodstyle>
 
 # Preloaded methods go here.
@@ -542,7 +542,7 @@ sub AUTOLOAD {
 __END__
 # Below is stub documentation for your module. You'd better edit it!
 
-=encoding utf-8
+=encoding utf8
 
 =head1 NAME
 
@@ -689,7 +689,7 @@ Controls which links are also included in the email. See L<Linked Media|/Linked 
 
 Boolean controling whether to die when downloading of media fails. Default True so failing to download media results in a fatal error.
 
-If you are sending email from content with broken images it might be a good idea to turn this on since otherwise the email building procedure will fail.
+If you are sending email from content with broken images it might be a good idea to turn this off since otherwise the email building procedure will fail.
 
 Use at your own risk.
 
@@ -786,7 +786,7 @@ Or if you prefer
     'attach_uri' => sub {my $uri = shift; return $uri->scheme !~ /^(ftp|file)/i}
   );
 
-will not attach any media fetched via ftp or from the local filesystem.
+will not attach any media fetched via ftp or from the local file system.
 
 =head2 Linked Media
 

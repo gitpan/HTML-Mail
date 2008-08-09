@@ -19,7 +19,7 @@ To install this module type the following:
 DEPENDENCIES
 
 This module requires these other modules and libraries:
-LWP
+LWP::UserAgent
 HTML::Parser
 MIME::Lite
 URI
@@ -28,13 +28,17 @@ Data::UUID (OPTIONAL, RECOMMENDED)	If present cids will be globally unique, if n
 
 Any perl version >= 5.6.0 should be OK.
 
-NOTICE
+
+**************
+*** NOTICE ***
+**************
 
 Testing sends an email (multipart/alternative with static html and text) to plank@cpan.org.
 No information about you system is sent, only static content.
-If you find this unacceptable:
-	* don't test the module
-	* see the end of file t/01_basic.t and modify accordingly
+If you find this unacceptable please run Makefile.PL with NOEMAIL or EMAIL someone@somewhere
+
+	* perl Makefile.PL NOEMAIL #doesn't send email
+	* perl Makefile.PL EMAIL someone@somewhere #sends email to someone@somewhere instead
 
 I could ask something while creating the Makefile, but I wish to maintain the build procedure fully automatic.
 

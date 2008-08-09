@@ -1,9 +1,15 @@
 Revision history for Perl extension HTML::Mail.
 
+0.11  Sat Aug  9 17:21:49 WEST 2008
+	- Option email sending from parameters when running perl Makefile.PL
+
+0.10  Mon Jul 16 10:02:13 WEST 2007
+	- Bumped revison
+	  Encoding problems
+
 0.0.3 Sat Jul 14 12:09:28 WEST 2007
 	- added strict_download flag to control whether to die when downloading media fails
 	  now considered beta
-
 
 0.02_05 Mon Sep 25 18:29:02 WEST 2006
 	- solved minor base href bug (thanks Eduardo Correia)

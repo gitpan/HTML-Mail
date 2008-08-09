@@ -10,7 +10,7 @@ if ( $#ARGV != 1 ) {
     print <<EOF;
 Usage sendpage url email
 
-sendpage http://www.cpan.org receipient\@domain.org
+sendpage http://www.cpan.org recepient\@domain.org
 
 EOF
     exit 0;
@@ -33,3 +33,4 @@ my $html_mail = new HTML::Mail(
 );
 
 $html_mail->send();
+#$html_mail->send('smtp', "cpan.mx.develooper.com");

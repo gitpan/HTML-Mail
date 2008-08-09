@@ -1,20 +1,28 @@
-# Before `make install' is performed this script should be runnable with
-# `make test'. After `make install' it should work as `perl 1.t'
-
-#########################
-
 use Test::More tests => 10;
 BEGIN { use_ok('HTML::Mail') };
 
+use File::Spec::Functions;
+
 #########################
 
+my $email_file = catfile(qw(t email));
+my $default_email = 'plank@sapo.pt';
+my $email = $default_email;
+
+if( -e $email_file ){
+	open(my $file, '<', $email_file);
+	$email = <$file>;
+	chomp($email);
+}else{
+	$email = undef;
+}
 my $html_mail;
 
 ok($html_mail = HTML::Mail->new(
   HTML    => '<html><body>Basic Test</body></html>',
   Text    => 'Basic Test',
-  From    => 'plank@cpan.org',
-  To      => 'plank@cpan.org',
+  From    => $email || $default_email,
+  To      => $email || $default_email,
   Subject => 'Test webpage',
 ), 'Constuction of object' );
 
@@ -27,8 +35,8 @@ ok($html_mail->build, 'Object has built message');
 ok($html_mail->as_string, 'Message dumped as string');
 
 TODO: {
-	local $TODO = "Maybe the user doesn't have sendmail installed or has no internet connection at the time of testing";
-	#maybe I should get input from the user or make this test optional
+	local $TODO = "This is just way too system specific to get right everywhere.";
+	todo_skip "User doesn't want to test this", 1 if not defined($email);
 	ok(test_send(), 'Email sent');
 }
 
